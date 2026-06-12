@@ -700,15 +700,18 @@ class OutlierGUI:
                 continue
 
             if img is None:
+                path_str = str(path)
+                short_path = path_str if len(path_str) <= 60 else "..." + path_str[-57:]
+
                 if error:
                     self.axs[i].text(
-                        0.5, 0.5, f"Could not load:\n{path}\n\n{error}",
+                        0.5, 0.5, f"Could not load:\n{short_path}\n\n{error}",
                         ha="center", va="center", transform=self.axs[i].transAxes,
                         fontsize=8, wrap=True,
                     )
                 else:
                     self.axs[i].text(
-                        0.5, 0.5, f"Not found:\n{path}",
+                        0.5, 0.5, f"Not found:\n{short_path}",
                         ha="center", va="center", transform=self.axs[i].transAxes,
                         fontsize=8, wrap=True,
                     )
@@ -1493,7 +1496,9 @@ def _render_array_panel(ax, item: Dict[str, object], slice_index: int, contrast:
     expected_path = item.get("expected_path") or path or ""
 
     if not path or not os.path.isfile(path):
-        _draw_placeholder(ax, title, f"Not found:\n{expected_path}")
+        expected_str = str(expected_path)
+        short_expected = expected_str if len(expected_str) <= 60 else "..." + expected_str[-57:]
+        _draw_placeholder(ax, title, f"Not found:\n{short_expected}")
         return 1
 
     try:
@@ -1506,7 +1511,9 @@ def _render_array_panel(ax, item: Dict[str, object], slice_index: int, contrast:
         image, depth, used_slice, mode = _display_plane(arr, slice_index=slice_index, channel=channel)
         image = _normalize_for_display(image, window_reference, contrast)
     except Exception as exc:
-        _draw_placeholder(ax, title, f"Could not load:\n{path}\n\n{exc}")
+        path_str = str(path)
+        short_path = path_str if len(path_str) <= 60 else "..." + path_str[-57:]
+        _draw_placeholder(ax, title, f"Could not load:\n{short_path}\n\n{exc}")
         return 1
 
     ax.clear()
@@ -1519,10 +1526,13 @@ def _render_array_panel(ax, item: Dict[str, object], slice_index: int, contrast:
         ax.imshow(image, cmap=cmap, vmin=0, vmax=1, aspect="equal")
 
     slice_info = f" | slice {used_slice}/{depth - 1}" if depth > 1 else ""
+    filename = os.path.basename(path)
+    short_filename = filename if len(filename) <= 40 else filename[:37] + "..."
+
     ax.set_title(
-        f"{title}\n{os.path.basename(path)} | shape={tuple(arr.shape)} | {mode}{slice_info}",
-        fontsize=9,
-        pad=8,
+        f"{title}\n{short_filename} | shape={tuple(arr.shape)} | {mode}{slice_info}",
+        fontsize=10,
+        pad=12,
     )
     return max(int(depth), 1)
 
@@ -1632,11 +1642,12 @@ class AnomalyGenerationTab(_ArrayTabBase):
         self.refresh_files()
 
     def _build_ui(self):
-        self.columnconfigure(1, weight=1)
-        self.rowconfigure(0, weight=1)
+        paned = ttk.PanedWindow(self, orient=tk.HORIZONTAL)
+        paned.pack(fill=tk.BOTH, expand=True)
 
-        side = ttk.Frame(self, padding=8)
-        side.grid(row=0, column=0, sticky="ns")
+        side = ttk.Frame(paned, padding=8)
+        paned.add(side, weight=1)
+
         ttk.Label(side, text="anomaly_data", font=("Arial", 10, "bold")).pack(anchor="w")
         ttk.Label(side, text=self.anomaly_dir, wraplength=260).pack(anchor="w", fill=tk.X)
 
@@ -1645,12 +1656,13 @@ class AnomalyGenerationTab(_ArrayTabBase):
         ttk.Button(side, text="Refresh", command=self.refresh_files).pack(fill=tk.X, pady=(8, 0))
         self._build_controls(side)
 
-        content = ttk.Frame(self, padding=(4, 8, 8, 8))
-        content.grid(row=0, column=1, sticky="nsew")
+        content = ttk.Frame(paned, padding=(4, 8, 8, 8))
+        paned.add(content, weight=4)
         content.rowconfigure(0, weight=1)
         content.columnconfigure(0, weight=1)
 
         self.fig, self.axs = plt.subplots(2, 2, figsize=(12, 8), constrained_layout=True)
+        self.fig.set_constrained_layout_pads(w_pad=0.05, h_pad=0.05, hspace=0.05, wspace=0.05)
         self.axs = self.axs.flatten()
         self.canvas = FigureCanvasTkAgg(self.fig, master=content)
         self.canvas.get_tk_widget().grid(row=0, column=0, sticky="nsew")
@@ -1721,11 +1733,12 @@ class FusedAnomalyTab(_ArrayTabBase):
         self.refresh_files()
 
     def _build_ui(self):
-        self.columnconfigure(1, weight=1)
-        self.rowconfigure(0, weight=1)
+        paned = ttk.PanedWindow(self, orient=tk.HORIZONTAL)
+        paned.pack(fill=tk.BOTH, expand=True)
 
-        side = ttk.Frame(self, padding=8)
-        side.grid(row=0, column=0, sticky="ns")
+        side = ttk.Frame(paned, padding=8)
+        paned.add(side, weight=1)
+
         ttk.Label(side, text="images_npy", font=("Arial", 10, "bold")).pack(anchor="w")
         ttk.Label(side, text=self.hybrid_images_dir, wraplength=260).pack(anchor="w", fill=tk.X)
 
@@ -1734,13 +1747,14 @@ class FusedAnomalyTab(_ArrayTabBase):
         ttk.Button(side, text="Refresh", command=self.refresh_files).pack(fill=tk.X, pady=(8, 0))
         self._build_controls(side)
 
-        content = ttk.Frame(self, padding=(4, 8, 8, 8))
-        content.grid(row=0, column=1, sticky="nsew")
+        content = ttk.Frame(paned, padding=(4, 8, 8, 8))
+        paned.add(content, weight=4)
         content.rowconfigure(0, weight=2)
         content.rowconfigure(2, weight=1)
         content.columnconfigure(0, weight=1)
 
         self.fig_hybrid, top_axs = plt.subplots(1, 2, figsize=(12, 4.8), constrained_layout=True)
+        self.fig_hybrid.set_constrained_layout_pads(w_pad=0.05, h_pad=0.05, hspace=0.05, wspace=0.05)
         self.ax_hybrid, self.ax_hybrid_mask = top_axs
         self.hybrid_canvas = FigureCanvasTkAgg(self.fig_hybrid, master=content)
         self.hybrid_canvas.get_tk_widget().grid(row=0, column=0, sticky="nsew")
@@ -1754,6 +1768,7 @@ class FusedAnomalyTab(_ArrayTabBase):
         self.roi_combo.bind("<<ComboboxSelected>>", self._on_roi_selected)
 
         self.fig_bottom, bottom_axs = plt.subplots(1, 2, figsize=(12, 4), constrained_layout=True)
+        self.fig_bottom.set_constrained_layout_pads(w_pad=0.05, h_pad=0.05, hspace=0.05, wspace=0.05)
         self.ax_roi, self.ax_anomaly = bottom_axs
         self.bottom_canvas = FigureCanvasTkAgg(self.fig_bottom, master=content)
         self.bottom_canvas.get_tk_widget().grid(row=2, column=0, sticky="nsew")
@@ -1883,7 +1898,7 @@ class HybridDataGeneratorVisualizer:
 
 def run_hybrid_visualizer(config, channel: int = 0, cmap: str = "gray"):
     root = tk.Tk()
-    root.tk.call("tk", "scaling", 2.0)
+    #root.tk.call("tk", "scaling", 2.0)
     HybridDataGeneratorVisualizer(root, config, channel=channel, cmap=cmap)
     root.mainloop()
 
